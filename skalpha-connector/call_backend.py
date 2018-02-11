@@ -4,6 +4,9 @@ import json
 from bs4 import BeautifulSoup
 import re
 from dividend import DividendPayout
+import sys
+from PersistClient import PersistClient
+
 
 DECLARED = "DECLARED"
 GOES_EX = "GOES_EX"
@@ -30,12 +33,16 @@ def callBackend(mydate):
     html = data.get('market_currents')
     soup = BeautifulSoup(html, 'html.parser')
     articles = soup.find_all("div", class_="media-body")
+
+    client = PersistClient()
+
     for article in articles:
         articleType = getArticleType(article)
         if articleType == DECLARED:
             try:
                 divPayout = parseDeclaredArticle(article)
                 print(divPayout)
+                client.insert(divPayout.getDict())
             except Exception as e:
                 print("!! Article could not be parsed: " + str(e) + "!!")
 
@@ -97,4 +104,10 @@ def parseDeclaredArticle(article):
     return divPayout
 
 
-callBackend('2018-02-07')
+def main(argv):
+    date = argv[0]
+    callBackend(date)
+
+
+if __name__ == '__main__':
+    main(sys.argv[1:])
