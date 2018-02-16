@@ -1,4 +1,5 @@
 from pymongo import MongoClient
+from datetime import datetime
 
 PENDING = 'PENDING'
 
@@ -14,5 +15,7 @@ class PersistClient:
 
     def insert(self, dic):
         dic['status'] = PENDING
+        dic['created'] = datetime.utcnow()
+        dic['lastModified'] = ''
         db = self.client[self.DB]
         db[self.COLLECTION].insert_one(dic)

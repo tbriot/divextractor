@@ -1,4 +1,9 @@
 from pymongo import MongoClient
+from datetime import datetime
+import logging
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 HOST = '192.168.99.100'
 PORT = 27017
@@ -18,20 +23,17 @@ importedDivs = db[COLL_IMPORT]
 dividends = db[COLL_DIV]
 
 
-def loaddiv():
-    div = importedDivs.find_one_and_update(
-        {'status': PENDING},
-        {"$set": {'status': INPROGRESS}}
-    )
-
-    action = determineProcessStatus(div)
-    if action == INSERTED:
-        dividends.insert_one(div)
-
-    importedDivs.update(
-        {'_id': div['_id']},
-        {"$set": {'status': action}}
-    )
+def loadAll():
+    logger.info('Start reading entries from IMPORT collection')
+    count = 0
+    while True:
+        div = getNextDiv()
+        if div is not None:
+            load(div)
+            count += 1
+        else:
+            break
+    logger.info('Load complete. {} entries were processed'.format(count))
 
 
 def determineProcessStatus(div):
@@ -71,4 +73,45 @@ def getDupScore(existingDiv, div):
     return dupScore
 
 
-loaddiv()
+def getNextDiv():
+    return importedDivs.find_one_and_update(
+            {'status': PENDING},
+            {
+                '$set': {'status': INPROGRESS},
+                '$currentDate': {
+                    'lastModified': True
+                }
+            }
+    )
+
+
+def load(div):
+    action = determineProcessStatus(div)
+    if action == INSERTED:
+        dividends.insert_one(reformat(div))
+    importedDivs.update(
+        {'_id': div['_id']},
+        {
+            '$set': {'status': action},
+            '$currentDate': {
+                'lastModified': True
+            }
+        }
+    )
+    logger.info('Processed entry ({}:{}). Status={}'.format(
+            div['security']['stockExchange'],
+            div['security']['ticker'],
+            action
+        )
+    )
+
+
+def reformat(div):
+    newDiv = div.copy()
+    del newDiv['_id']
+    del newDiv['status']
+    newDiv['created'] = datetime.utcnow()
+    return newDiv
+
+
+loadAll()
