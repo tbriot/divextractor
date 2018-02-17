@@ -1,6 +1,8 @@
 from pymongo import MongoClient
 from datetime import datetime
 import logging
+import setup_logging
+from collections import defaultdict
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -22,18 +24,31 @@ db = client[DB]
 importedDivs = db[COLL_IMPORT]
 dividends = db[COLL_DIV]
 
+setup_logging.setup_logging()
+logger = logging.getLogger('loaddiv')
+
 
 def loadAll():
-    logger.info('Start reading entries from IMPORT collection')
-    count = 0
+    logger.info(
+        'START loading dividends db={} from_collection={}'
+        ' to_collection={}'.format(
+            DB,
+            COLL_IMPORT,
+            COLL_DIV
+        )
+    )
+    results = defaultdict(int)
+    results['found_records'] = False
     while True:
         div = getNextDiv()
         if div is not None:
-            load(div)
-            count += 1
+            logger.debug('Read dividend=' + str(div))
+            results['found_records'] = True
+            action = load(div)
+            results[action] += 1
         else:
             break
-    logger.info('Load complete. {} entries were processed'.format(count))
+    logger.info('END loading dividends. results=' + str(results))
 
 
 def determineProcessStatus(div):
@@ -87,8 +102,40 @@ def getNextDiv():
 
 def load(div):
     action = determineProcessStatus(div)
+    logger.debug('Process status is action={} for div_ticker={}'.format(
+        action,
+        div['security']['ticker']
+    ))
     if action == INSERTED:
+        logger.debug(
+            'Inserting entry div_ticker={} payable={} db={} '
+            'to_collection={}'.format(
+                div['security']['ticker'],
+                div['dates']['payable'],
+                DB,
+                COLL_DIV
+            )
+        )
         dividends.insert_one(reformat(div))
+        logger.debug(
+            'Inserted entry div_ticker={} payable={} db={} '
+            'to_collection={}'.format(
+                div['security']['ticker'],
+                div['dates']['payable'],
+                DB,
+                COLL_DIV
+            )
+        )
+
+    logger.debug(
+        'Updating entry div_ticker={} payable={} db={} '
+        'from_collection={}'.format(
+            div['security']['ticker'],
+            div['dates']['payable'],
+            DB,
+            COLL_IMPORT
+        )
+    )
     importedDivs.update(
         {'_id': div['_id']},
         {
@@ -98,12 +145,17 @@ def load(div):
             }
         }
     )
-    logger.info('Processed entry ({}:{}). Status={}'.format(
-            div['security']['stockExchange'],
+    logger.debug(
+        'Updated entry div_ticker={} payable={} db={} '
+        'from_collection={} action={}'.format(
             div['security']['ticker'],
+            div['dates']['payable'],
+            DB,
+            COLL_IMPORT,
             action
         )
     )
+    return action
 
 
 def reformat(div):

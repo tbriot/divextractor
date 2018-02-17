@@ -27,10 +27,10 @@ setup_logging.setup_logging()
 logger = logging.getLogger('scrape_sa')
 
 
-def callBackend(mydate):
+def scrape_divs(mydate):
     assert validateDateFormat
     querystring['date'] = mydate
-    logger.info('Retrieving web page')
+    logger.debug('Retrieving web page')
     logger.debug('URL={}, headers={}, querystring={}'.format(
         URL, headers, str(querystring)))
     r = requests.get(URL, headers=headers, params=querystring)
@@ -38,7 +38,7 @@ def callBackend(mydate):
         raise SystemError("Unexpected HTTP status code ({}) returned by"
                           " Seeking Alpha's server".format(r.status_code))
 
-    logger.info('Page retrieved')
+    logger.debug('Page retrieved')
     data = json.loads(r.content)
     html = data.get('market_currents')
     soup = BeautifulSoup(html, 'html.parser')
@@ -55,7 +55,7 @@ def callBackend(mydate):
                 divPayout = parseDeclaredArticle(article)
                 logger.debug('Extracted dividend payout: ' + str(divPayout))
                 logger.debug('Inserting dividend payout in db')
-                # client.insert(divPayout.getDict())
+                client.insert(divPayout.getDict())
                 logger.debug('Insertion successful')
                 cntSuccess += 1
             except Exception as e:
@@ -123,11 +123,12 @@ def parseDeclaredArticle(article):
 
 def main(argv):
     date = argv[0]
-    logger.info('Start scraping dividends for date={}'.format(date))
-    cntSuccess, cntError = callBackend(date)
-    logger.info('End scraping dividends')
-    logger.info(str(cntSuccess) + ' div payouts extracted successfully')
-    logger.info(str(cntError) + ' div payouts could not be extracted')
+    logger.info('START scraping dividends for date={}'.format(date))
+    cntSuccess, cntError = scrape_divs(date)
+    logger.info(
+        'END scraping. Dividend payouts extracted successfully: div_success={}'
+        ' and in error: div_error={}'.format(str(cntSuccess), str(cntError)))
+
 
 if __name__ == '__main__':
     main(sys.argv[1:])

@@ -3,3 +3,6 @@ __pycache__/
 
 # Visual Studio
 .vscode/
+
+# Log directory
+log/
