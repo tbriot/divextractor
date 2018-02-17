@@ -6,6 +6,8 @@ import re
 from dividend import DividendPayout
 import sys
 from PersistClient import PersistClient
+import setup_logging
+import logging
 
 
 DECLARED = "DECLARED"
@@ -21,14 +23,22 @@ headers = {
 querystring = {'current_tag': 'dividends'}
 
 
+setup_logging.setup_logging()
+logger = logging.getLogger('scrape_sa')
+
+
 def callBackend(mydate):
     assert validateDateFormat
     querystring['date'] = mydate
+    logger.info('Retrieving web page')
+    logger.debug('URL={}, headers={}, querystring={}'.format(
+        URL, headers, str(querystring)))
     r = requests.get(URL, headers=headers, params=querystring)
     if r.status_code != 200:
         raise SystemError("Unexpected HTTP status code ({}) returned by"
                           " Seeking Alpha's server".format(r.status_code))
 
+    logger.info('Page retrieved')
     data = json.loads(r.content)
     html = data.get('market_currents')
     soup = BeautifulSoup(html, 'html.parser')
@@ -36,15 +46,22 @@ def callBackend(mydate):
 
     client = PersistClient()
 
+    cntSuccess = 0
+    cntError = 0
     for article in articles:
         articleType = getArticleType(article)
         if articleType == DECLARED:
             try:
                 divPayout = parseDeclaredArticle(article)
-                print(divPayout)
-                client.insert(divPayout.getDict())
+                logger.debug('Extracted dividend payout: ' + str(divPayout))
+                logger.debug('Inserting dividend payout in db')
+                # client.insert(divPayout.getDict())
+                logger.debug('Insertion successful')
+                cntSuccess += 1
             except Exception as e:
-                print("!! Article could not be parsed: " + str(e) + "!!")
+                logger.error('Article could not be parsed: ' + str(e) + '!!')
+                cntError += 1
+    return cntSuccess, cntError
 
 
 def validateDateFormat(date):
@@ -106,8 +123,11 @@ def parseDeclaredArticle(article):
 
 def main(argv):
     date = argv[0]
-    callBackend(date)
-
+    logger.info('Start scraping dividends for date={}'.format(date))
+    cntSuccess, cntError = callBackend(date)
+    logger.info('End scraping dividends')
+    logger.info(str(cntSuccess) + ' div payouts extracted successfully')
+    logger.info(str(cntError) + ' div payouts could not be extracted')
 
 if __name__ == '__main__':
     main(sys.argv[1:])
