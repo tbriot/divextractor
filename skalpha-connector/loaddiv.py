@@ -3,12 +3,16 @@ from datetime import datetime
 import logging
 import setup_logging
 from collections import defaultdict
+import os
+
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-HOST = '192.168.99.100'
-PORT = 27017
+# HOST = '192.168.99.100'
+# PORT = 27017
+HOST = os.environ['MONGODB_HOST']
+PORT = int(os.environ['MONGODB_PORT'])
 DB = 'dividend'
 COLL_IMPORT = 'import'
 COLL_DIV = 'dividend'

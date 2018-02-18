@@ -1,12 +1,15 @@
 from pymongo import MongoClient
 from datetime import datetime
+import os
 
 PENDING = 'PENDING'
 
 
 class PersistClient:
-    HOST = '192.168.99.100'
-    PORT = 27017
+    # HOST = '192.168.99.100'
+    # PORT = 27017
+    HOST = os.environ['MONGODB_HOST']
+    PORT = int(os.environ['MONGODB_PORT'])
     DB = 'dividend'
     COLLECTION = 'import'
 

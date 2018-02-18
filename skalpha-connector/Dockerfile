@@ -9,21 +9,42 @@ ENV LANG C.UTF-8
 
 # runtime dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
-		tcl \
-		tk \
+		ca-certificates \
+		libexpat1 \
+		libffi6 \
+		libgdbm3 \
+		libreadline6 \
+		libsqlite3-0 \
+		libssl1.0.0 \
 	&& rm -rf /var/lib/apt/lists/*
 
 ENV GPG_KEY 0D96DF4D4110E5C43FBFB17F2D347EA6AA65421D
 ENV PYTHON_VERSION 3.6.4
 
 RUN set -ex \
-	&& buildDeps=' \
+	&& buildDeps=" \
 		dpkg-dev \
+		gcc \
+		libbz2-dev \
+		libc6-dev \
+		libexpat1-dev \
+		libffi-dev \
+		libgdbm-dev \
+		liblzma-dev \
+		libncursesw5-dev \
+		libreadline-dev \
+		libsqlite3-dev \
+		libssl-dev \
+		make \
 		tcl-dev \
 		tk-dev \
-        build-essential \
-	' \
-	&& apt-get update && apt-get install -y $buildDeps wget libssl-dev --no-install-recommends && rm -rf /var/lib/apt/lists/* \
+		wget \
+		xz-utils \
+		zlib1g-dev \
+# as of Stretch, "gpg" is no longer included by default
+		$(command -v gpg > /dev/null || echo 'gnupg dirmngr') \
+	" \
+	&& apt-get update && apt-get install -y $buildDeps --no-install-recommends && rm -rf /var/lib/apt/lists/* \
 	\
 	&& wget -O python.tar.xz "https://www.python.org/ftp/python/${PYTHON_VERSION%%[a-z]*}/Python-$PYTHON_VERSION.tar.xz" \
 	&& wget -O python.tar.xz.asc "https://www.python.org/ftp/python/${PYTHON_VERSION%%[a-z]*}/Python-$PYTHON_VERSION.tar.xz.asc" \
@@ -70,7 +91,13 @@ ENV PYTHON_PIP_VERSION 9.0.1
 
 RUN set -ex; \
 	\
+	apt-get update; \
+	apt-get install -y --no-install-recommends wget; \
+	rm -rf /var/lib/apt/lists/*; \
+	\
 	wget -O get-pip.py 'https://bootstrap.pypa.io/get-pip.py'; \
+	\
+	apt-get purge -y --auto-remove wget; \
 	\
 	python get-pip.py \
 		--disable-pip-version-check \
@@ -86,5 +113,19 @@ RUN set -ex; \
 			\( -type f -a \( -name '*.pyc' -o -name '*.pyo' \) \) \
 		\) -exec rm -rf '{}' +; \
 	rm -f get-pip.py
+
+# div-extractor specific code
+WORKDIR /usr/src/div-extractor
+
+COPY requirements.txt ./
+
+RUN pip install --no-cache-dir -r requirements.txt
+
+COPY . .
+
+ENV MONGODB_HOST="localhost"
+ENV MONGODB_PORT="27017"
+
+EXPOSE 27017
 
 CMD ["mongod"]
