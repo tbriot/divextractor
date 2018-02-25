@@ -1,6 +1,7 @@
 import requests
 import uuid
 import json
+import datetime
 from bs4 import BeautifulSoup
 import re
 from dividend import DividendPayout
@@ -27,9 +28,8 @@ setup_logging.setup_logging()
 logger = logging.getLogger('scrape_sa')
 
 
-def scrape_divs(mydate):
-    assert validateDateFormat
-    querystring['date'] = mydate
+def getHTML(date):
+    querystring['date'] = date
     logger.debug('Retrieving web page')
     logger.debug('URL={}, headers={}, querystring={}'.format(
         URL, headers, str(querystring)))
@@ -40,7 +40,14 @@ def scrape_divs(mydate):
 
     logger.debug('Page retrieved')
     data = json.loads(r.content)
-    html = data.get('market_currents')
+    # JSON object contain 'none_on_date' key if there's no content
+    if data.get('none_on_date') is not None:
+        raise SystemError("No results for selected date='{}'".format(date))
+    else:
+        return data.get('market_currents')
+
+
+def scrape_divs(html):
     soup = BeautifulSoup(html, 'html.parser')
     articles = soup.find_all("div", class_="media-body")
 
@@ -122,13 +129,25 @@ def parseDeclaredArticle(article):
 
 
 def main(argv):
-    date = argv[0]
+    if len(argv) > 1:
+        date = argv[1]
+        assert validateDateFormat(date)
+    # if date is not provided in arg take current date
+    else:
+        today = datetime.date.today()
+        date = today.strftime('%Y-%m-%d')
     logger.info('START scraping dividends for date={}'.format(date))
-    cntSuccess, cntError = scrape_divs(date)
-    logger.info(
-        'END scraping. Dividend payouts extracted successfully: div_success={}'
-        ' and in error: div_error={}'.format(str(cntSuccess), str(cntError)))
+    try:
+        html = getHTML(date)
+        cntSuccess, cntError = scrape_divs(html)
+        logger.info(
+            "END scraping. Dividend payouts extracted successfully:"
+            " div_success={} and in error:"
+            " div_error={}".format(str(cntSuccess), str(cntError)))
+    except Exception as e:
+        logger.error("Unexpected error: " + str(e))
+        raise e
 
 
 if __name__ == '__main__':
-    main(sys.argv[1:])
+    main(sys.argv)
