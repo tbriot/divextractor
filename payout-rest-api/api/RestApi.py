@@ -1,9 +1,11 @@
 from DbConnection import DbConnection
 
+'''
 host = 'mysqlinstance.co0pqf5yoscl.ca-central-1.rds.amazonaws.com'
 user = 'tbriot'
 passwd = 'irondesK8'
 db = 'dividend'
+'''
 
 payout = {
     'exchange': 'NYSE',
@@ -17,7 +19,7 @@ payout = {
     'frequency': 'MONTHLY'
 }
 
-conn = DbConnection(host, user, passwd, db)
+conn = DbConnection()
 res = conn.find_payout_close_to_paydate(2, '2018-04-20')
 if res is not None:
     print("Entry with close paydate found")

@@ -1,11 +1,18 @@
 import MySQLdb
+import os
 
 
 class DbConnection:
 
-    def __init__(self, host, user, passwd, db, port=3306):
+    def __init__(self):
+        parms = self.get_db_params()
         # Open database connection
-        self.conn = MySQLdb.connect(host, user, passwd, db, port)
+        self.conn = MySQLdb.connect(parms['host'],
+                                    parms['user'],
+                                    parms['passwd'],
+                                    parms['db'],
+                                    parms['port']
+                                    )
 
     def insert_payout(self, payout):
         cur = self.conn.cursor()
@@ -57,17 +64,15 @@ class DbConnection:
                 "AND pay_date >= DATE_ADD(%s, INTERVAL -1 WEEK)"
                 )
 
-'''
-# prepare a cursor object using cursor() method
-cursor = db.cursor()
-
-# execute SQL query using execute() method.
-cursor.execute("SELECT VERSION()")
-
-# Fetch a single row using fetchone() method.
-data = cursor.fetchone()
-print("Database version : %s " % data)
-
-# disconnect from server
-db.close()
-'''
+    @staticmethod
+    def get_db_params():
+        try:
+            return {
+                'host': os.environ['DB_HOST'],
+                'port': int(os.environ['DB_PORT']),
+                'user': os.environ['DB_USER'],
+                'passwd': os.environ['DB_PASSWD'],
+                'db': os.environ['DB_SCHEMA']
+            }
+        except KeyError as e:
+            print("Environment variable is not set: %s" % str(e))
