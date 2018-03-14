@@ -1,27 +1,18 @@
-from DbConnection import DbConnection
+from DividendPayout import DividendPayout
 
-'''
-host = 'mysqlinstance.co0pqf5yoscl.ca-central-1.rds.amazonaws.com'
-user = 'tbriot'
-passwd = 'irondesK8'
-db = 'dividend'
-'''
+payout = DividendPayout(
+    exchange_code='NYSE',
+    security_symbol='BRK.B',
+    declared_date='2018-03-01',
+    record_date='2018-04-02',
+    ex_date='2018-04-03',
+    pay_date='2018-05-11',
+    net_amount=1.25,
+    currency_code='CAD',
+    frequency='MONTHLY',
+    payment_type=None,
+    qualified=None,
+    flag=None
+)
 
-payout = {
-    'exchange_code': 'NASDAQ',
-    'security_symbol': 'ATVI',
-    'declared_date': '2018-03-12',
-    'record_date': '2018-04-02',
-    'ex_date': '2018-04-03',
-    'pay_date': '2018-04-23',
-    'net_amount': 0.25,
-    'currency_code': 'USD',
-    'frequency': 'MONTHLY',
-    'payment_type': None,
-    'qualified': None,
-    'flag': None
-}
-
-conn = DbConnection()
-res = conn.insert_payout(payout)
-# conn.insert_payout(payout)
+payout.insert()
