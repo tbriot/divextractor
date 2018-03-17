@@ -1,7 +1,7 @@
 import MySQLdb
 import os
 from datetime import datetime
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 from customExceptions import ValidationException
 
 
@@ -59,8 +59,8 @@ class DividendPayout:
         cur.execute(stmt, [self.exchange_code, self.security_symbol])
         data = cur.fetchone()
         if data is None:  # if security not found in db
-            raise SystemError(
-                "Unknown security. exchange_code={} "
+            raise ValidationException(
+                "Unknown security. exchange_code={}. "
                 "security_symbol={}".format(
                     self.exchange_code,
                     self.security_symbol
@@ -153,15 +153,35 @@ class DividendPayout:
             raise ValidationException("input={} is mandatory".format(key))
 
     def convert_datatypes(self):
-        self.declared_date = datetime.strptime(
-            self.declared_date, '%Y-%m-%d').date()
-        self.record_date = datetime.strptime(
-            self.record_date, '%Y-%m-%d').date()
-        self.ex_date = datetime.strptime(
-            self.ex_date, '%Y-%m-%d').date()
-        self.pay_date = datetime.strptime(
-            self.pay_date, '%Y-%m-%d').date()
-        self.net_amount = Decimal(self.net_amount)
+        self.declared_date = self.parse_date('declared_date',
+                                             self.declared_date)
+        self.record_date = self.parse_date('record_date',
+                                           self.record_date)
+        self.ex_date = self.parse_date('ex_date',
+                                       self.ex_date)
+        self.pay_date = self.parse_date('pay_date',
+                                        self.pay_date)
+        self.net_amount = self.parse_decimal('net_amount', self.net_amount)
+
+    @staticmethod
+    def parse_date(key, value):
+        try:
+            return datetime.strptime(value, '%Y-%m-%d').date()
+        except ValueError:
+            raise ValidationException(
+                "input={} date format is invalid. "
+                "Expected format is 'YYYY-MM-DD'. "
+                "received_date={}".format(key, value))
+
+    @staticmethod
+    def parse_decimal(key, value):
+        try:
+            return Decimal(value)
+        except InvalidOperation:
+            raise ValidationException(
+                "input={} decimal format is invalid. "
+                "Expected format is XX.YYY. "
+                "received_decimal={}".format(key, value))
 
     def equals(self, payout_dict):
         for key in payout_dict:
