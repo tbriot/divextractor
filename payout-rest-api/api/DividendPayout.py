@@ -2,6 +2,7 @@ import MySQLdb
 import os
 from datetime import datetime
 from decimal import Decimal
+from customExceptions import ValidationException
 
 
 class DividendPayout:
@@ -137,15 +138,19 @@ class DividendPayout:
             print("Environment variable is not set: %s" % str(e))
 
     def check_mandatory_fields(self):
-        error_str = "mandatory parameter is missing: '%s'"
-        assert self.exchange_code, error_str % "exchange_code"
-        assert self.security_symbol, error_str % "security_symbol"
-        assert self.declared_date, error_str % "declared_date"
-        assert self.record_date, error_str % "record_date"
-        assert self.ex_date, error_str % "ex_date"
-        assert self.pay_date, error_str % "excpay_datehange_code"
-        assert self.net_amount, error_str % "net_amount"
-        assert self.currency_code, error_str % "currency_code"
+        self.raise_except_if_none('exchange_code', self.exchange_code)
+        self.raise_except_if_none('security_symbol', self.security_symbol)
+        self.raise_except_if_none('declared_date', self.declared_date)
+        self.raise_except_if_none('record_date', self.record_date)
+        self.raise_except_if_none('ex_date', self.ex_date)
+        self.raise_except_if_none('pay_date', self.pay_date)
+        self.raise_except_if_none('net_amount', self.net_amount)
+        self.raise_except_if_none('currency_code', self.currency_code)
+
+    @staticmethod
+    def raise_except_if_none(key, value):
+        if not value:
+            raise ValidationException("input={} is mandatory".format(key))
 
     def convert_datatypes(self):
         self.declared_date = datetime.strptime(
