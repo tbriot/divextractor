@@ -2,7 +2,8 @@ import MySQLdb
 import os
 from datetime import datetime
 from decimal import Decimal, InvalidOperation
-from customExceptions import ValidationException
+from customExceptions import ValidationException, DbConnectionException, \
+    DuplicateException, ConflictException
 
 
 class DividendPayout:
@@ -38,25 +39,37 @@ class DividendPayout:
 
         parms = self.get_db_params()
         # Open database connection
-        self.conn = MySQLdb.connect(parms['host'],
-                                    parms['user'],
-                                    parms['passwd'],
-                                    parms['db'],
-                                    parms['port']
-                                    )
+        try:
+            self.conn = MySQLdb.connect(
+                parms['host'],
+                parms['user'],
+                parms['passwd'],
+                parms['db'],
+                parms['port'],
+                connect_timeout=parms['timeout']
+            )
+        except Exception:
+            raise DbConnectionException("Error while connecting to db")
         self.check_security()
 
     def insert(self):
         cur = self.conn.cursor()
         self.check_duplicate(cur)
         stmt = self.get_insert_payout_stmt()
-        cur.execute(stmt)
-        self.conn.commit()
+        try:
+            cur.execute(stmt)
+            self.conn.commit()
+            return cur.lastrowid
+        except Exception:
+            raise DbConnectionException("Error while inserting record in db")
 
     def check_security(self):
         cur = self.conn.cursor()
         stmt = self.get_select_security_stmt()
-        cur.execute(stmt, [self.exchange_code, self.security_symbol])
+        try:
+            cur.execute(stmt, [self.exchange_code, self.security_symbol])
+        except Exception:
+            raise DbConnectionException("Error while querying the db")
         data = cur.fetchone()
         if data is None:  # if security not found in db
             raise ValidationException(
@@ -74,13 +87,20 @@ class DividendPayout:
         res = self.find_payout_close_to_paydate(cursor)
         if res:
             if self.equals(res):
-                raise SystemError("Duplicate payout")
+                raise DuplicateException("Duplicate payout")
             else:
-                raise SystemError("Ambiguous payout. May be a duplicate")
+                msg_templ = "May be a duplicate of payout_id={}. " \
+                            "No payout was inserted."
+                raise ConflictException(msg_templ.format(res['payout_id']))
 
     def find_payout_close_to_paydate(self, cursor):
         stmt = self.get_select_payout_paydate_stmt()
-        cursor.execute(stmt, [self.security_id, self.pay_date, self.pay_date])
+        try:
+            cursor.execute(stmt, [self.security_id,
+                                  self.pay_date,
+                                  self.pay_date])
+        except Exception:
+            raise DbConnectionException("Error while queying the db")
         data = cursor.fetchone()
         if data is not None:
             cols_name = [i[0] for i in cursor.description]
@@ -129,13 +149,17 @@ class DividendPayout:
         try:
             return {
                 'host': os.environ['DB_HOST'],
-                'port': int(os.environ['DB_PORT']),
                 'user': os.environ['DB_USER'],
                 'passwd': os.environ['DB_PASSWD'],
-                'db': os.environ['DB_SCHEMA']
+                'db': os.environ['DB_SCHEMA'],
+                # default port is 3306 if not specified in env var
+                'port': int(os.environ.get('DB_PORT') or 3306),
+                # default connection timeout is 5 seconds i
+                # if not specified in env var
+                'timeout': int(os.environ.get('DB_TIMEOUT') or 5)
             }
         except KeyError as e:
-            print("Environment variable is not set: %s" % str(e))
+            print("Mandatory environment variable is not set: %s" % str(e))
 
     def check_mandatory_fields(self):
         self.raise_except_if_none('exchange_code', self.exchange_code)
@@ -150,7 +174,8 @@ class DividendPayout:
     @staticmethod
     def raise_except_if_none(key, value):
         if not value:
-            raise ValidationException("input={} is mandatory".format(key))
+            raise ValidationException(
+                "Mandatory field={} is missing".format(key))
 
     def convert_datatypes(self):
         self.declared_date = self.parse_date('declared_date',
