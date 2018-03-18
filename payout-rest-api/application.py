@@ -3,12 +3,15 @@ from flask import Flask, request, make_response
 import json
 from customExceptions import ValidationException, DbConnectionException, \
     DuplicateException, ConflictException
+from DividendHistory import DividendHistory
 
 api_name = 'dividend'
 api_version = 1
 base_url = '/{name}/v{version}'.format(name=api_name, version=api_version)
 
-app = Flask(__name__)
+# to comply to AWS Elastic Beanstalk naming convention
+application = Flask(__name__)
+app = application
 
 
 @app.route(base_url + '/payout/<string:exchange_code>'
@@ -38,6 +41,19 @@ def hello(exchange_code, security_symbol):
     resp = make_response(json.dumps(resp_body), 201)
     resp.headers['Content-Type'] = 'application/json'
     return resp
+
+
+@app.route("/", methods=['GET'])
+@app.route("/health", methods=['GET'])
+def health():
+    html_templ = "<h1>Dividend Payout REST API</h1>" \
+                 "Health: %s"
+    try:
+        dh = DividendHistory()
+        dh.health_check()
+        return html_templ % "OK", 200
+    except:
+        return html_templ % "ERROR", 500
 
 
 @app.errorhandler(404)
