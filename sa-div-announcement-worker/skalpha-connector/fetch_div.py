@@ -9,6 +9,7 @@ import sys
 from PersistClient import PersistClient
 import setup_logging
 import logging
+from CliArgParser import CliArgParser
 
 
 DECLARED = "DECLARED"
@@ -128,7 +129,16 @@ def parseDeclaredArticle(article):
     return divPayout
 
 
-def main(argv):
+def fetch_day(date):
+    print("fetch day: {}".format(str(date)))
+
+
+def fetch_window(start_date, end_date):
+    print("fetch window. start: {}, end: {}".format(
+        str(start_date), str(end_date)))
+
+'''
+def main(args):
     if len(argv) > 1:
         date = argv[1]
         assert validateDateFormat(date)
@@ -147,7 +157,18 @@ def main(argv):
     except Exception as e:
         logger.error("Unexpected error: " + str(e))
         raise e
+'''
 
+
+def main():
+    parser = CliArgParser()
+    args, mode = parser.parse_args()
+    if mode == 'DAY':
+        fetch_day(args.date)
+    elif mode == 'WINDOW':
+        fetch_window(args.start, args.end)
+    else:
+        fetch_day(datetime.date.today())
 
 if __name__ == '__main__':
-    main(sys.argv)
+    main()
