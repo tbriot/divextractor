@@ -38,7 +38,11 @@ class CliArgParser(argparse.ArgumentParser):
         elif args.date and not(args.start or args.end):
             return args, 'DAY'
         elif not(args.date) and args.start and args.end:
-            return args, 'WINDOW'
+            if args.start < args.end:
+                return args, 'WINDOW'
+            else:
+                raise argparse.ArgumentTypeError(
+                    "the --start argument should be older than --end one")
         else:
             raise argparse.ArgumentTypeError(
                 "either --date argument should be provided or "
