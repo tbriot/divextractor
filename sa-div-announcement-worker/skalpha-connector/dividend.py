@@ -2,7 +2,7 @@ from collections import defaultdict
 import json
 
 
-class DividendPayout:
+class Dividend:
     def __init__(self):
         self._data = defaultdict(dict)
 

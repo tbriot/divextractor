@@ -8,38 +8,16 @@ formatters:
 handlers:
     console:
         class: logging.StreamHandler
-        level: INFO
-        formatter: simple
-        stream: ext://sys.stdout
-
-    info_file_handler:
-        class: logging.handlers.RotatingFileHandler
         level: DEBUG
         formatter: simple
-        filename: /var/log/skalpha.info.log
-        maxBytes: 10485760 # 10MB
-        backupCount: 20
-        encoding: utf8
-
-    error_file_handler:
-        class: logging.handlers.RotatingFileHandler
-        level: ERROR
-        formatter: simple
-        filename: /var/log/skalpha.error.log
-        maxBytes: 10485760 # 10MB
-        backupCount: 20
-        encoding: utf8
+        stream: ext://sys.stdout
 
 loggers:
     scrape_sa:
         level: DEBUG
-        handlers: [console, info_file_handler, error_file_handler]
+        handlers: [console]
         propagate: no
 
-    loaddiv:
-        level: DEBUG
-        handlers: [console, info_file_handler, error_file_handler]
-        propagate: no
 root:
     level: INFO
     handlers: [console]
