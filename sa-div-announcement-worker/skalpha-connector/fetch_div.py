@@ -23,16 +23,15 @@ def fetch_day(date):
             # call REST API
             
             logger.debug(
-                "Success processing payout, security={}".format(
-                    div._data['security']['ticker'])
+                "Success processing payout, security=" + str(div)
             )
 
             cnt += 1
         except Exception as e:
             logger.error(
-                "Eerro processing payout, security={}, "
+                "Error processing payout, security={}, "
                 "messsage={}".format(
-                    div._data['security']['ticker'],
+                    div.security_symbol,
                     str(e))
             )
 

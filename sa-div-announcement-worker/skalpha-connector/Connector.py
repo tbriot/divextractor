@@ -3,6 +3,8 @@ from bs4 import BeautifulSoup
 from Dividend import Dividend
 import re
 import json
+import exceptions as ex
+from datetime import datetime
 
 DECLARED = "DECLARED"
 GOES_EX = "GOES_EX"
@@ -23,7 +25,7 @@ class Connector:
         if not html:
             raise SystemError("HTML content not found")
 
-        return self._extract_divs(html)
+        return self._extract_divs(html, date)
     
     def _get_HTML(self, date):
         querystring = {
@@ -50,7 +52,7 @@ class Connector:
         html = data.get('market_currents')
         return html
 
-    def _extract_divs(self, html):
+    def _extract_divs(self, html, date):
         soup = BeautifulSoup(html, 'html.parser')
         articles = soup.find_all("div", class_="media-body")
         
@@ -59,15 +61,14 @@ class Connector:
             articleType = self._get_article_type(article)
             if articleType == DECLARED:
                 try:
-                    div = self._parse_article_declared(article)
+                    div = Connector._parse_article_declared(article, date)
                     div_list.append(div)
                 except Exception as e:
                     print('Article could not be parsed: ' + str(e) + '!!')
         return div_list
 
     @staticmethod
-    def _parse_article_declared(article):
-        div = Dividend()
+    def _parse_article_declared(article, declared_date):
         bulletList = article.find("div", class_="bullets").ul.find_all("li")
         # The first bullet of the article provides the following information :
         # - stock exchange. e.g. "NYSE", "NASDAQ", NYSEMKT"
@@ -79,31 +80,88 @@ class Connector:
         # Samples:
         # "Royal Dutch Shell (NYSE:RDS.A) declares $0.94/share quarterly"\
         # "dividend, in line with previous."
+        #
         # "Visa (NYSE:V) declares $0.21/share quarterly dividend,"\
         # " 7.7% increase from prior dividend of $0.195."
-        searchDiv = re.search(r"\(([\w\.]+):([\w\.]+)\) declares "
-                            r"(.*)/share ([\w\-]+) dividend",
-                            bulletList[0].get_text())
+        regex = r"\(([\w\.]+):([\w\.]+)\) declares " \
+                r"([A-Z$]*)\s?(\d*\.?\d*)/share ([\w\-]+) dividend"
+
+        searchDiv = re.search(regex, bulletList[0].get_text())
         if searchDiv:
-            div.setTickerSymbol(searchDiv.group(1),
-                                    searchDiv.group(2))
-            div.setAmount(searchDiv.group(3))
-            div.setFrequency(searchDiv.group(4))
+            exchange_code = searchDiv.group(1)
+            security_symbol = searchDiv.group(2)
+            currency = searchDiv.group(3)
+            net_amount = searchDiv.group(4)
+            frequency = searchDiv.group(5)
         else:
-            raise SystemError("Could not parse string: " +
-                            bulletList[0].get_text())
-        # The third bullet of the article provides the following information :
+            raise ex.ParsingError(
+                bulletList[0].get_text(),
+                regex,
+                "Could not extract exchange, ticker, amount or frequency")
+        # The LAST bullet of the article provides the following information :
         # - payable date, e.g. "Feb. 15", "March 15", "April 12"
         # - record date, e.g. "Feb. 15", "March 15", "April 12"
         # - ex-dividend date, e.g. "Feb. 15", "March 15", "April 12"
-        searchDates = re.search(r"Payable (.*);"
-                                r" for shareholders of record (.*);"
-                                r" ex-div (.*)\.$", bulletList[2].get_text())
+        # the last item of the list is extracted with: some_list[-1]        
+        
+        regex = r"Payable (.*); for shareholders of record (.*); ex-div (.*)\.$"
+        searchDates = re.search(regex, bulletList[-1].get_text())
         if searchDates:
-            div.setDates(searchDates.group(1),
-                            searchDates.group(2),
-                            searchDates.group(3))
-        return div
+            pay_date = searchDates.group(1)
+            record_date = searchDates.group(2)
+            ex_date = searchDates.group(3)
+        else:
+            raise ex.ParsingError(
+                bulletList[2].get_text(),
+                regex,
+                "Could not extract pay date, record date or ex date"
+                ", security=({}:{})".format(exchange_code, security_symbol))
+
+        return Dividend(
+            exchange_code=exchange_code,
+            security_symbol=security_symbol,
+            declared_date=declared_date,
+            record_date=Connector._convert_date_format(record_date, declared_date),
+            ex_date=Connector._convert_date_format(ex_date, declared_date),
+            pay_date=Connector._convert_date_format(pay_date, declared_date),
+            net_amount=net_amount,
+            currency_code=Connector._convert_currency_code(currency),
+            frequency=Connector._convert_frequency_code(frequency))
+
+    @staticmethod
+    def _convert_date_format(date_str, declared_date):
+        """ date_str is a dividend record date, ex date or pay date 
+            it does NOT contain the year e.g. 'May 9', 'December 12'
+            The year has to be guessed based on the declaration date :
+            either the same year, or the next year, but it has to be 
+            in the future """
+        dt_format = '%B %d'
+        d = datetime.strptime(date_str, dt_format).date()
+        # taking a guess, supposing the input date is the same year
+        # as the declaration date
+        d = d.replace(year=declared_date.year)
+        if declared_date < d: 
+            return d
+        else: # input date is actually next year
+            return d.replace(year=declared_date.year + 1)
+
+    @staticmethod
+    def _convert_currency_code(cur):
+        if cur == "$":
+            return 'USD'
+        else:
+            return cur
+
+    @staticmethod
+    def _convert_frequency_code(freq):
+        map = {
+            "monthly": 'MONTHLY',
+            "quaterly": 'QUATERLY',
+            "semi-annual": 'BIANNUALLY',
+            "annual": 'ANNUALLY'
+        }
+
+        return map.get(freq)
 
     @staticmethod    
     def _get_article_type(article):
